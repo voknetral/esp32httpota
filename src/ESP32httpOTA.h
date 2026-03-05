@@ -20,7 +20,6 @@
 #include <HTTPUpdate.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
-#include <functional>
 
 /** Library version */
 #define ESP32HTTPOTA_VERSION "1.0.0"
@@ -50,9 +49,6 @@ enum OTAResult {
   OTA_JSON_ERROR,   ///< Manifest JSON is invalid or missing fields
   OTA_UPDATE_FAILED ///< Firmware download or flash failed
 };
-
-/** Progress callback signature: void(int current, int total) */
-typedef std::function<void(int, int)> OTAProgressCallback;
 
 /**
  * @class ESP32httpOTA
@@ -89,46 +85,6 @@ public:
    */
   ESP32httpOTA(const char *version, const char *manifestUrl);
 
-  // ─── Configuration ────────────────────────────────────────────────
-
-  /**
-   * @brief Set CA certificate for secure HTTPS verification.
-   * Only used with WiFiClientSecure. If not set, caller should use
-   * client.setInsecure().
-   * @param cert PEM-encoded root CA certificate string
-   */
-  void setCACert(const char *cert);
-
-  /**
-   * @brief Change the manifest URL at runtime.
-   * @param url New URL to version.json
-   */
-  void setManifestURL(const char *url);
-
-  /**
-   * @brief Set HTTP request timeout in milliseconds.
-   * @param ms Timeout value (default: 10000)
-   */
-  void setTimeout(uint32_t ms);
-
-  /**
-   * @brief Set whether device should auto-reboot after successful update.
-   * @param reboot true = auto restart, false = manual restart (default: false)
-   */
-  void rebootOnUpdate(bool reboot);
-
-  /**
-   * @brief Register a progress callback for firmware download.
-   * @param cb Callback function: void(int current, int total)
-   *
-   * @code
-   * ota.onProgress([](int current, int total) {
-   *     Serial.printf("Progress: %d / %d\n", current, total);
-   * });
-   * @endcode
-   */
-  void onProgress(OTAProgressCallback cb);
-
   // ─── OTA Operations ───────────────────────────────────────────────
 
   /**
@@ -152,24 +108,6 @@ public:
    */
   OTAResult run(WiFiClient &client);
 
-  /**
-   * @brief Force update from a specific firmware URL (HTTPS, skip version
-   * check).
-   * @param client  WiFiClientSecure reference
-   * @param url     Direct URL to firmware .bin file
-   * @return OTAResult indicating the outcome
-   */
-  OTAResult forceUpdate(WiFiClientSecure &client, const String &url);
-
-  /**
-   * @brief Force update from a specific firmware URL (HTTP, skip version
-   * check).
-   * @param client  WiFiClient reference
-   * @param url     Direct URL to firmware .bin file
-   * @return OTAResult indicating the outcome
-   */
-  OTAResult forceUpdate(WiFiClient &client, const String &url);
-
   // ─── Getters ──────────────────────────────────────────────────────
 
   /**
@@ -177,13 +115,6 @@ public:
    * @return Pointer to version string (e.g. "1.0.0")
    */
   const char *currentVersion();
-
-  /**
-   * @brief Get the latest version found from last run().
-   * Only valid after a successful manifest fetch.
-   * @return Pointer to latest version string, or empty if not checked yet
-   */
-  const char *latestVersion();
 
   /**
    * @brief Convert OTAResult code to human-readable string.
@@ -195,11 +126,6 @@ public:
 private:
   String _version;
   String _manifestUrl;
-  String _latestVersion;
-  const char *_caCert;
-  uint32_t _timeout;
-  bool _reboot;
-  OTAProgressCallback _progressCb;
 
   int _compareVersion(const String &v1, const String &v2);
   OTAResult _fetchAndUpdate(Client &client);

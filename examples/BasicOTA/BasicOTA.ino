@@ -42,14 +42,6 @@ void setup() {
   Serial.begin(115200);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-  // Progress callback (opsional)
-  ota.onProgress([](int current, int total) {
-    if (total > 0) {
-      Serial.printf("[OTA] Progress: %d / %d bytes (%d%%)\n", current, total,
-                    (current * 100) / total);
-    }
-  });
-
   Serial.printf("\n=== Firmware v%s ===\n", ota.currentVersion());
   Serial.println("Tekan tombol Pin 12 untuk cek OTA.\n");
 }

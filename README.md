@@ -8,7 +8,7 @@
 
 **Library OTA (Over-The-Air) firmware update untuk ESP32 via HTTP/HTTPS.**
 
-Library ringan dan modular untuk mengecek dan menerapkan update firmware dari **server HTTP/HTTPS manapun** — GitHub, VPS, S3, Firebase, server lokal LAN, atau URL apapun yang menyediakan file JSON manifest dan file `.bin`.
+Library ringan untuk mengecek dan menerapkan update firmware dari **server HTTP/HTTPS manapun** — GitHub, VPS, S3, Firebase, server lokal LAN, atau URL apapun yang menyediakan file JSON manifest dan file `.bin`.
 
 ---
 
@@ -69,7 +69,7 @@ void setup() {
 
     // Konfigurasi client HTTPS
     WiFiClientSecure client;
-    client.setInsecure();          // atau ota.setCACert(rootCA) untuk verifikasi
+    client.setInsecure();          // atau client.setCACert(rootCA) untuk verifikasi
 
     // Cek dan menjalankan update
     OTAResult result = ota.run(client);
@@ -161,75 +161,8 @@ ESP32httpOTA ota("1.0.0", "https://yourserver.com/version.json");
 
 ---
 
-### Konfigurasi
-
-#### `setCACert(const char* cert)`
-
-Set root CA certificate untuk verifikasi HTTPS. Jika tidak di-set, user harus pakai `client.setInsecure()`.
-
-```cpp
-const char* rootCA = "-----BEGIN CERTIFICATE-----\n...";
-ota.setCACert(rootCA);
-```
-
-> **Note:** CA cert otomatis di-apply ke client saat `run()` atau `forceUpdate()` dipanggil.
-
----
-
-#### `setManifestURL(const char* url)`
-
-Ubah manifest URL saat runtime. Berguna jika URL bisa berubah (misalnya staging vs production).
-
-```cpp
-ota.setManifestURL("https://staging.server.com/version.json");
-```
-
----
-
-#### `setTimeout(uint32_t ms)`
-
-Set timeout HTTP request dalam milidetik. Default: `10000` (10 detik).
-
-```cpp
-ota.setTimeout(15000);  // 15 detik
-```
-
----
-
-#### `rebootOnUpdate(bool reboot)`
-
-Atur apakah device otomatis restart setelah update berhasil. Default: `false` (restart manual).
-
-```cpp
-ota.rebootOnUpdate(true);   // Auto restart setelah flash berhasil
-ota.rebootOnUpdate(false);  // User yang panggil ESP.restart() sendiri
-```
-
----
-
-#### `onProgress(OTAProgressCallback cb)`
-
-Register callback untuk monitoring progress download firmware.
-
-**Signature callback:** `void(int current, int total)`
-
-```cpp
-ota.onProgress([](int current, int total) {
-    if (total > 0) {
-        int pct = (current * 100) / total;
-        Serial.printf("Progress: %d%% (%d / %d bytes)\n", pct, current, total);
-    }
-});
-```
-
-> **Tip:** Jika `onProgress` tidak di-set dan `OTA_DEBUG` aktif, library otomatis print progress setiap 10%.
-
----
-
-### OTA Operations
-
-#### `run(WiFiClientSecure& client)` → `OTAResult`
-#### `run(WiFiClient& client)` → `OTAResult`
+### `run(WiFiClientSecure& client)` → `OTAResult`
+### `run(WiFiClient& client)` → `OTAResult`
 
 Fungsi utama. Cek manifest di server, bandingkan versi, dan update jika ada versi baru.
 
@@ -250,59 +183,23 @@ WiFiClient httpClient;
 OTAResult result = ota.run(httpClient);
 ```
 
-> **Warning:** Library TIDAK restart device otomatis (kecuali `rebootOnUpdate(true)`). Cek `OTA_SUCCESS` dan panggil `ESP.restart()` sendiri.
+> **Warning:** Library TIDAK restart device otomatis. Cek `OTA_SUCCESS` dan panggil `ESP.restart()` sendiri.
 
 ---
 
-#### `forceUpdate(WiFiClientSecure& client, const String& url)` → `OTAResult`
-#### `forceUpdate(WiFiClient& client, const String& url)` → `OTAResult`
-
-Download dan flash firmware langsung dari URL. **Tidak cek versi** — langsung download dan flash.
-
-Berguna untuk:
-- Recovery / rollback ke versi tertentu
-- Force update tanpa manifest
-- Testing firmware baru
-
-```cpp
-WiFiClient client;
-OTAResult result = ota.forceUpdate(client, "http://192.168.1.100/firmware.bin");
-
-if (result == OTA_SUCCESS) {
-    ESP.restart();
-}
-```
-
----
-
-### Getter
-
-#### `currentVersion()` → `const char*`
+### `currentVersion()` → `const char*`
 
 Return versi firmware saat ini yang di-set di constructor.
 
 ```cpp
 Serial.printf("Firmware v%s\n", ota.currentVersion());
-// Output: Firmware v1.0.0
 ```
 
 ---
 
-#### `latestVersion()` → `const char*`
+### `resultToString(OTAResult result)` → `const char*` *(static)*
 
-Return versi terbaru yang ditemukan dari manifest **setelah** `run()` dipanggil. Kosong jika belum pernah cek.
-
-```cpp
-ota.run(client);
-Serial.printf("Latest: v%s\n", ota.latestVersion());
-// Output: Latest: v1.1.0
-```
-
----
-
-#### `resultToString(OTAResult result)` → `const char*` *(static)*
-
-Konversi result code ke string yang mudah dibaca. Method static — bisa dipanggil tanpa instance.
+Konversi result code ke string yang mudah dibaca.
 
 ```cpp
 OTAResult result = ota.run(client);
@@ -314,13 +211,13 @@ Serial.println(ESP32httpOTA::resultToString(result));
 
 ## Result Codes
 
-| Code | Nilai | Deskripsi | Kapan Terjadi |
-|------|-------|-----------|---------------|
-| `OTA_SUCCESS` | 0 | Update berhasil di-flash | Firmware baru sudah ditulis, siap restart |
-| `OTA_NO_UPDATE` | 1 | Firmware sudah up to date | Versi di server ≤ versi saat ini |
-| `OTA_HTTP_ERROR` | 2 | Gagal konek ke server | URL salah, server down, WiFi putus |
-| `OTA_JSON_ERROR` | 3 | JSON invalid | Format salah, field `version`/`firmware` hilang |
-| `OTA_UPDATE_FAILED` | 4 | Download/flash gagal | File `.bin` corrupt, koneksi putus saat download |
+| Code | Nilai | Deskripsi |
+|------|-------|-----------|
+| `OTA_SUCCESS` | 0 | Update berhasil di-flash, siap restart |
+| `OTA_NO_UPDATE` | 1 | Firmware sudah up to date |
+| `OTA_HTTP_ERROR` | 2 | Gagal konek ke server |
+| `OTA_JSON_ERROR` | 3 | JSON invalid atau field hilang |
+| `OTA_UPDATE_FAILED` | 4 | Download atau flash gagal |
 
 ---
 
@@ -346,13 +243,6 @@ Library **tidak menghasilkan output serial** secara default. Untuk mengaktifkan 
 ...
 [OTA] Progress: 100%
 [OTA] Update successful!
-```
-
-**Jika gagal:**
-
-```
-[OTA] HTTP error: -1
-[OTA] Update failed (error -104): Connection refused
 ```
 
 ---
@@ -384,33 +274,13 @@ Tidak. Library ini khusus untuk **ESP32** karena menggunakan `HTTPUpdate` dari a
 Tidak. Library support HTTP biasa dengan `WiFiClient`. Tapi untuk production disarankan HTTPS.
 
 ### Bisa pakai Ethernet selain WiFi?
-Bisa. Selama kamu punya `Client` yang terkoneksi, library bisa dipakai. `run()` menerima `WiFiClient&` yang merupakan turunan dari `Client`.
-
-### `OTA_DEBUG` akan memperbesar binary?
-Jika tidak di-define, semua `OTA_LOG()` akan hilang total saat compile (macro kosong). Tidak ada overhead.
+Bisa. Selama kamu punya `Client` yang terkoneksi, library bisa dipakai.
 
 ### Apakah aman jika update gagal di tengah jalan?
 Ya. ESP32 menggunakan dual-partition scheme. Jika flash gagal, device tetap boot dari partisi yang lama.
 
 ### Kenapa library tidak restart sendiri?
 Best practice: library tidak boleh mengambil kontrol restart. User mungkin perlu menyimpan data, menutup koneksi, atau memberi notifikasi sebelum restart.
-
----
-
-## Changelog
-
-### v1.0.0
-- Initial release
-- JSON manifest-based version checking
-- Semantic version comparison
-- HTTP dan HTTPS support (`WiFiClient` & `WiFiClientSecure`)
-- CA certificate support dengan `setCACert()`
-- Progress callback dengan `onProgress()`
-- Configurable timeout dengan `setTimeout()`
-- Auto-reboot control dengan `rebootOnUpdate()`
-- Debug logging dengan `#define OTA_DEBUG`
-- Force update dari direct URL
-- Arduino IDE + PlatformIO compatible
 
 ---
 

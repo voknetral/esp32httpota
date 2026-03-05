@@ -5,25 +5,12 @@
 
 #include "ESP32httpOTA.h"
 
-// ─── Constructor & Setters ──────────────────────────────────────────
+// ─── Constructor ────────────────────────────────────────────────────
 
 ESP32httpOTA::ESP32httpOTA(const char *version, const char *manifestUrl)
-    : _version(version), _manifestUrl(manifestUrl), _caCert(nullptr),
-      _timeout(10000), _reboot(false), _progressCb(nullptr) {}
-
-void ESP32httpOTA::setCACert(const char *cert) { _caCert = cert; }
-
-void ESP32httpOTA::setManifestURL(const char *url) { _manifestUrl = url; }
-
-void ESP32httpOTA::setTimeout(uint32_t ms) { _timeout = ms; }
-
-void ESP32httpOTA::rebootOnUpdate(bool reboot) { _reboot = reboot; }
-
-void ESP32httpOTA::onProgress(OTAProgressCallback cb) { _progressCb = cb; }
+    : _version(version), _manifestUrl(manifestUrl) {}
 
 const char *ESP32httpOTA::currentVersion() { return _version.c_str(); }
-
-const char *ESP32httpOTA::latestVersion() { return _latestVersion.c_str(); }
 
 const char *ESP32httpOTA::resultToString(OTAResult result) {
   switch (result) {
@@ -64,31 +51,11 @@ int ESP32httpOTA::_compareVersion(const String &v1, const String &v2) {
 // ─── Public run() overloads ─────────────────────────────────────────
 
 OTAResult ESP32httpOTA::run(WiFiClientSecure &client) {
-  // Apply CA certificate if set
-  if (_caCert) {
-    client.setCACert(_caCert);
-  }
   return _fetchAndUpdate(client);
 }
 
 OTAResult ESP32httpOTA::run(WiFiClient &client) {
   return _fetchAndUpdate(client);
-}
-
-// ─── Public forceUpdate() overloads ─────────────────────────────────
-
-OTAResult ESP32httpOTA::forceUpdate(WiFiClientSecure &client,
-                                    const String &url) {
-  if (_caCert) {
-    client.setCACert(_caCert);
-  }
-  OTA_LOG("Force update from: %s", url.c_str());
-  return _doUpdate(client, url);
-}
-
-OTAResult ESP32httpOTA::forceUpdate(WiFiClient &client, const String &url) {
-  OTA_LOG("Force update from: %s", url.c_str());
-  return _doUpdate(client, url);
 }
 
 // ─── Main OTA Flow ──────────────────────────────────────────────────
@@ -103,7 +70,7 @@ OTAResult ESP32httpOTA::_fetchAndUpdate(Client &client) {
     return OTA_HTTP_ERROR;
   }
 
-  http.setTimeout(_timeout);
+  http.setTimeout(10000);
   int code = http.GET();
 
   if (code != HTTP_CODE_OK) {
@@ -128,20 +95,20 @@ OTAResult ESP32httpOTA::_fetchAndUpdate(Client &client) {
     return OTA_JSON_ERROR;
   }
 
-  _latestVersion = doc["version"].as<String>();
+  String latestVersion = doc["version"].as<String>();
   String firmwareUrl = doc["firmware"].as<String>();
 
   OTA_LOG("Current: v%s | Latest: v%s", _version.c_str(),
-          _latestVersion.c_str());
+          latestVersion.c_str());
 
   // 3. Compare versions
-  if (_compareVersion(_latestVersion, _version) <= 0) {
+  if (_compareVersion(latestVersion, _version) <= 0) {
     OTA_LOG("Already up to date");
     return OTA_NO_UPDATE;
   }
 
   OTA_LOG("Update available: v%s -> v%s", _version.c_str(),
-          _latestVersion.c_str());
+          latestVersion.c_str());
 
   // 4. Download & flash
   return _doUpdate(client, firmwareUrl);
@@ -153,29 +120,17 @@ OTAResult ESP32httpOTA::_doUpdate(Client &client, const String &url) {
   OTA_LOG("Downloading: %s", url.c_str());
 
   httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  httpUpdate.rebootOnUpdate(_reboot);
+  httpUpdate.rebootOnUpdate(false);
 
-  // User progress callback
-  if (_progressCb) {
-    OTAProgressCallback cb = _progressCb; // capture by value
-    httpUpdate.onProgress([cb](int current, int total) {
-      if (total > 0) {
-        cb(current, total);
-      }
-    });
-  }
 #ifdef OTA_DEBUG
-  else {
-    // Default debug progress when no user callback is set
-    httpUpdate.onProgress([](int current, int total) {
-      if (total > 0) {
-        int pct = (current * 100) / total;
-        if (pct % 10 == 0) {
-          Serial.printf("[OTA] Progress: %d%%\n", pct);
-        }
+  httpUpdate.onProgress([](int current, int total) {
+    if (total > 0) {
+      int pct = (current * 100) / total;
+      if (pct % 10 == 0) {
+        Serial.printf("[OTA] Progress: %d%%\n", pct);
       }
-    });
-  }
+    }
+  });
 #endif
 
   t_httpUpdate_return ret = httpUpdate.update(client, url);
