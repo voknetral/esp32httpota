@@ -357,77 +357,21 @@ Library **tidak menghasilkan output serial** secara default. Untuk mengaktifkan 
 
 ---
 
-## Alur Kerja Update
+## Penting: Kode OTA Harus Ada di Setiap Firmware
 
-```mermaid
-flowchart TD
-    A["DEVELOPER"] --> B["Edit kode, ubah versi ke 1.1.0"]
-    B --> C["Export Compiled Binary dari Arduino IDE"]
-    C --> D["Upload firmware.bin + version.json ke server"]
+Setiap firmware baru yang di-upload ke server **harus menyertakan kode ESP32httpOTA**. Jika tidak, device yang sudah di-update tidak akan bisa menerima update berikutnya dan harus di-flash manual via USB.
 
-    D --> E["SERVER\n(GitHub / VPS / S3 / LAN)"]
-    E --> F["version.json\n+ firmware.bin"]
+Pastikan juga untuk **mengubah string versi** di constructor sesuai versi firmware yang baru:
 
-    F --> G["ESP32 DEVICE\n(running v1.0.0)"]
-    G --> H["ota.run(client)"]
-    H --> I["GET version.json"]
-    I --> J["Bandingkan versi:\n1.1.0 > 1.0.0"]
-    J --> K["Download firmware.bin"]
-    K --> L["Flash ke partisi OTA"]
-    L --> M["return OTA_SUCCESS"]
-    M --> N["ESP.restart()\nBoot sebagai v1.1.0"]
+```cpp
+// Firmware lama (v1.0.0)
+ESP32httpOTA ota("1.0.0", "https://server.com/version.json");
+
+// Firmware baru (v1.1.0) — ubah versi di sini
+ESP32httpOTA ota("1.1.0", "https://server.com/version.json");
 ```
 
----
-
-## Arsitektur
-
-```mermaid
-flowchart LR
-    subgraph Sketch[".ino Sketch"]
-        direction TB
-        NET["WiFi / Ethernet"] --> CLIENT["WiFiClient atau\nWiFiClientSecure"]
-        TRIGGER["Trigger\n(tombol / timer / perintah)"] --> OTA
-        CLIENT --> OTA
-
-        subgraph OTA["ESP32httpOTA"]
-            direction TB
-            MANIFEST["Cek Manifest"]
-            VERSION["Bandingkan Versi"]
-            DOWNLOAD["Download Firmware"]
-            FLASH["Flash ke ESP32"]
-            MANIFEST --> VERSION --> DOWNLOAD --> FLASH
-        end
-
-        OTA --> RESULT["OTA_SUCCESS?\nESP.restart()"]
-    end
-```
-
-**Library bertanggung jawab untuk:** OTA logic (cek, download, flash).
-**Kamu bertanggung jawab untuk:** Koneksi network, trigger update, restart, dan aplikasi.
-
----
-
-## Struktur File
-
-```
-ESP32httpOTA/
-├── src/
-│   ├── ESP32httpOTA.h          # Header + Doxygen documentation
-│   └── ESP32httpOTA.cpp         # Implementasi
-├── examples/
-│   ├── BasicOTA/
-│   │   └── BasicOTA.ino        # Cek update via tombol (HTTPS)
-│   ├── AutoOTA/
-│   │   └── AutoOTA.ino         # Cek otomatis berkala (HTTPS)
-│   └── ForceOTA/
-│       └── ForceOTA.ino        # Flash langsung via URL (HTTP)
-├── library.properties          # Metadata Arduino IDE
-├── library.json                # Metadata PlatformIO
-├── keywords.txt                # Syntax highlighting Arduino IDE
-├── LICENSE                     # MIT License
-└── README.md                   # Dokumentasi ini
-```
+Jika versi tidak diubah, library akan menganggap firmware sudah up to date dan tidak akan melakukan update.
 
 ---
 
