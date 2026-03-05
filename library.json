@@ -1,0 +1,25 @@
+{
+    "name": "ESP32httpOTA",
+    "version": "1.0.0",
+    "description": "OTA Firmware Update Engine for ESP32 via HTTP/HTTPS",
+    "keywords": "ota, firmware, update, esp32, github, http, https",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/voknetral/ESP32httpOTA"
+    },
+    "authors": [
+        {
+            "name": "voknetral"
+        }
+    ],
+    "license": "MIT",
+    "frameworks": "arduino",
+    "platforms": "espressif32",
+    "dependencies": [
+        {
+            "name": "ArduinoJson",
+            "authors": "Benoit Blanchon",
+            "frameworks": "arduino"
+        }
+    ]
+}
