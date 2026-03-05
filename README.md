@@ -357,228 +357,50 @@ Library **tidak menghasilkan output serial** secara default. Untuk mengaktifkan 
 
 ---
 
-## Contoh Lengkap
-
-### 1. BasicOTA — Cek Update via Tombol
-
-Tekan tombol → konek WiFi → cek update → flash jika ada.
-
-```cpp
-#define OTA_DEBUG
-#include <ESP32httpOTA.h>
-#include <WiFi.h>
-#include <WiFiClientSecure.h>
-
-const char *WIFI_SSID = "NamaWiFi";
-const char *WIFI_PASSWORD = "PasswordWiFi";
-const int BUTTON_PIN = 12;
-
-ESP32httpOTA ota("1.0.0",
-    "https://raw.githubusercontent.com/username/repo/main/version.json");
-
-bool connectWiFi() {
-  if (WiFi.status() == WL_CONNECTED) return true;
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  uint32_t start = millis();
-  while (WiFi.status() != WL_CONNECTED) {
-    if (millis() - start > 15000) return false;
-    delay(500);
-  }
-  return true;
-}
-
-void setup() {
-  Serial.begin(115200);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-
-  ota.onProgress([](int current, int total) {
-    if (total > 0) {
-      Serial.printf("[OTA] Progress: %d / %d bytes (%d%%)\n",
-                    current, total, (current * 100) / total);
-    }
-  });
-
-  Serial.printf("\n=== Firmware v%s ===\n", ota.currentVersion());
-  Serial.println("Tekan tombol Pin 12 untuk cek OTA.");
-}
-
-void loop() {
-  if (digitalRead(BUTTON_PIN) == LOW) {
-    delay(50);
-    if (digitalRead(BUTTON_PIN) == LOW) {
-      if (connectWiFi()) {
-        WiFiClientSecure client;
-        client.setInsecure();
-        OTAResult result = ota.run(client);
-        Serial.printf("Hasil: %s\n", ESP32httpOTA::resultToString(result));
-        if (result == OTA_SUCCESS) {
-          delay(1000);
-          ESP.restart();
-        }
-      }
-      while (digitalRead(BUTTON_PIN) == LOW) delay(10);
-    }
-  }
-}
-```
-
----
-
-### 2. AutoOTA — Cek Otomatis Berkala
-
-Cek update otomatis setiap 1 jam. Cocok untuk perangkat IoT yang sudah terpasang.
-
-```cpp
-#define OTA_DEBUG
-#include <ESP32httpOTA.h>
-#include <WiFi.h>
-#include <WiFiClientSecure.h>
-
-const char *WIFI_SSID = "NamaWiFi";
-const char *WIFI_PASSWORD = "PasswordWiFi";
-const unsigned long CHECK_INTERVAL = 3600000; // 1 jam
-
-ESP32httpOTA ota("1.0.0",
-    "https://raw.githubusercontent.com/username/repo/main/version.json");
-
-unsigned long lastCheck = 0;
-
-void checkOTA() {
-  WiFiClientSecure client;
-  client.setInsecure();
-  OTAResult result = ota.run(client);
-  Serial.printf("OTA: %s\n", ESP32httpOTA::resultToString(result));
-  if (result == OTA_SUCCESS) {
-    delay(1000);
-    ESP.restart();
-  }
-}
-
-void setup() {
-  Serial.begin(115200);
-  ota.setTimeout(15000);
-  ota.onProgress([](int cur, int total) {
-    Serial.printf("[OTA] %d / %d bytes\n", cur, total);
-  });
-
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) delay(500);
-
-  checkOTA();               // Cek saat boot
-  lastCheck = millis();
-}
-
-void loop() {
-  if (millis() - lastCheck >= CHECK_INTERVAL) {
-    lastCheck = millis();
-    if (WiFi.status() == WL_CONNECTED) checkOTA();
-  }
-  delay(1000);
-}
-```
-
----
-
-### 3. ForceOTA — Flash Langsung via HTTP
-
-Update firmware langsung dari URL tanpa cek versi. Menggunakan HTTP biasa.
-
-```cpp
-#define OTA_DEBUG
-#include <ESP32httpOTA.h>
-#include <WiFi.h>
-
-const char *FIRMWARE_URL = "http://192.168.1.100/firmware.bin";
-ESP32httpOTA ota("1.0.0", "http://192.168.1.100/version.json");
-
-void setup() {
-  Serial.begin(115200);
-
-  ota.onProgress([](int current, int total) {
-    if (total > 0) Serial.printf("[OTA] %d%%\n", (current * 100) / total);
-  });
-
-  WiFi.begin("SSID", "PASSWORD");
-  while (WiFi.status() != WL_CONNECTED) delay(500);
-
-  WiFiClient client;                              // HTTP biasa
-  OTAResult result = ota.forceUpdate(client, FIRMWARE_URL);
-  Serial.printf("Hasil: %s\n", ESP32httpOTA::resultToString(result));
-
-  if (result == OTA_SUCCESS) {
-    delay(1000);
-    ESP.restart();
-  }
-}
-
-void loop() {
-  Serial.println("Update gagal. Retry 30 detik...");
-  delay(30000);
-  ESP.restart();
-}
-```
-
----
-
 ## Alur Kerja Update
 
-```
-+----------------------------------------------------+
-|  DEVELOPER                                          |
-|                                                     |
-|  1. Edit kode, ubah versi ke "1.1.0"                |
-|  2. Arduino IDE -> Sketch -> Export Compiled Binary  |
-|  3. Upload firmware.bin ke server                   |
-|  4. Update version.json -> { "version": "1.1.0" }  |
-+------------------------+---------------------------+
-                         |
-                         v
-+----------------------------------------------------+
-|  SERVER (GitHub / VPS / S3 / LAN / Firebase)        |
-|                                                     |
-|  version.json -> { "version": "1.1.0",             |
-|                    "firmware": "url/fw.bin" }        |
-|  firmware.bin -> (binary baru)                      |
-+------------------------+---------------------------+
-                         |
-                         v
-+----------------------------------------------------+
-|  ESP32 DEVICE (running v1.0.0)                      |
-|                                                     |
-|  ota.run(client)                                    |
-|    -> GET version.json                              |
-|    -> Parse: 1.1.0 > 1.0.0 -> update tersedia      |
-|    -> Download firmware.bin                          |
-|    -> Flash ke partisi OTA                          |
-|    -> return OTA_SUCCESS                            |
-|  ESP.restart() -> boot sebagai v1.1.0               |
-+----------------------------------------------------+
+```mermaid
+flowchart TD
+    A["DEVELOPER"] --> B["Edit kode, ubah versi ke 1.1.0"]
+    B --> C["Export Compiled Binary dari Arduino IDE"]
+    C --> D["Upload firmware.bin + version.json ke server"]
+
+    D --> E["SERVER\n(GitHub / VPS / S3 / LAN)"]
+    E --> F["version.json\n+ firmware.bin"]
+
+    F --> G["ESP32 DEVICE\n(running v1.0.0)"]
+    G --> H["ota.run(client)"]
+    H --> I["GET version.json"]
+    I --> J["Bandingkan versi:\n1.1.0 > 1.0.0"]
+    J --> K["Download firmware.bin"]
+    K --> L["Flash ke partisi OTA"]
+    L --> M["return OTA_SUCCESS"]
+    M --> N["ESP.restart()\nBoot sebagai v1.1.0"]
 ```
 
 ---
 
 ## Arsitektur
 
-```
-+------------------------------------------+
-|            Sketch kamu (.ino)            |
-|                                          |
-|  WiFi / Ethernet --> WiFiClient(Secure)  |
-|                                          |
-|  Trigger -----------------------+        |
-|  (tombol / timer / perintah)    |        |
-|                                 v        |
-|                      +--------------+    |
-|                      | ESP32httpOTA |    |
-|                      |              |    |
-|                      |  - Manifest  |    |
-|                      |  - Version   |    |
-|                      |  - Download  |    |
-|                      |  - Flash     |    |
-|                      +--------------+    |
-|                                          |
-|  if (OTA_SUCCESS) ESP.restart();         |
-+------------------------------------------+
+```mermaid
+flowchart LR
+    subgraph Sketch[".ino Sketch"]
+        direction TB
+        NET["WiFi / Ethernet"] --> CLIENT["WiFiClient atau\nWiFiClientSecure"]
+        TRIGGER["Trigger\n(tombol / timer / perintah)"] --> OTA
+        CLIENT --> OTA
+
+        subgraph OTA["ESP32httpOTA"]
+            direction TB
+            MANIFEST["Cek Manifest"]
+            VERSION["Bandingkan Versi"]
+            DOWNLOAD["Download Firmware"]
+            FLASH["Flash ke ESP32"]
+            MANIFEST --> VERSION --> DOWNLOAD --> FLASH
+        end
+
+        OTA --> RESULT["OTA_SUCCESS?\nESP.restart()"]
+    end
 ```
 
 **Library bertanggung jawab untuk:** OTA logic (cek, download, flash).
