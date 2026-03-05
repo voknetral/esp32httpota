@@ -12,7 +12,7 @@ Library ringan dan modular untuk mengecek dan menerapkan update firmware dari **
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - **Board**: ESP32 (semua varian)
 - **Arduino Core**: [arduino-esp32](https://github.com/espressif/arduino-esp32)
@@ -21,7 +21,7 @@ Library ringan dan modular untuk mengecek dan menerapkan update firmware dari **
 
 ---
 
-## 📥 Instalasi
+## Instalasi
 
 ### Arduino IDE
 
@@ -46,12 +46,12 @@ lib_deps =
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### HTTPS (GitHub, S3, Cloud Server)
 
 ```cpp
-#define OTA_DEBUG                 // Aktifkan log debug (opsional)
+#define OTA_DEBUG                 // Untuk mengaktifkan log debug (opsional)
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <ESP32httpOTA.h>
@@ -62,20 +62,20 @@ ESP32httpOTA ota("1.0.0", "https://raw.githubusercontent.com/user/repo/main/vers
 void setup() {
     Serial.begin(115200);
 
-    // 1. Konek WiFi
+    // Inisialisasi WiFi
     WiFi.begin("SSID", "PASSWORD");
     while (WiFi.status() != WL_CONNECTED) delay(500);
     Serial.println("WiFi OK!");
 
-    // 2. Konfigurasi client HTTPS
+    // Konfigurasi client HTTPS
     WiFiClientSecure client;
     client.setInsecure();          // atau ota.setCACert(rootCA) untuk verifikasi
 
-    // 3. Cek dan apply update
+    // Cek dan menjalankan update
     OTAResult result = ota.run(client);
     Serial.println(ESP32httpOTA::resultToString(result));
 
-    // 4. Restart jika update berhasil
+    // Restart jika update berhasil
     if (result == OTA_SUCCESS) {
         Serial.println("Update berhasil! Restart...");
         delay(1000);
@@ -104,15 +104,21 @@ void setup() {
     WiFiClient client;                       // HTTP biasa, tanpa SSL
     OTAResult result = ota.run(client);
 
-    if (result == OTA_SUCCESS) ESP.restart();
+    if (result == OTA_SUCCESS) {
+        Serial.println("Update berhasil! Restart...");
+        delay(1000);
+        ESP.restart();
+    }
 }
 
-void loop() {}
+void loop() {
+    // Program utama
+}
 ```
 
 ---
 
-## 🗂️ Setup Server
+## Setup Server
 
 ### 1. Buat File Manifest (`version.json`)
 
@@ -138,19 +144,9 @@ Arduino IDE → Sketch → Export Compiled Binary
 
 File `.bin` akan ada di folder sketch. Upload ke server bersama `version.json`.
 
-### 3. Contoh URL Server
-
-| Server | URL Manifest | URL Firmware |
-|--------|-------------|--------------|
-| **GitHub** | `https://raw.githubusercontent.com/user/repo/main/version.json` | `https://raw.githubusercontent.com/user/repo/main/firmware.bin` |
-| **Server Lokal** | `http://192.168.1.100/version.json` | `http://192.168.1.100/firmware.bin` |
-| **VPS (Nginx)** | `https://ota.domain.com/version.json` | `https://ota.domain.com/firmware.bin` |
-| **AWS S3** | `https://bucket.s3.amazonaws.com/ota/version.json` | `https://bucket.s3.amazonaws.com/ota/firmware.bin` |
-| **Firebase** | `https://project.web.app/ota/version.json` | `https://project.web.app/ota/firmware.bin` |
-
 ---
 
-## 📖 API Reference
+## API Reference
 
 ### Constructor
 
@@ -254,7 +250,7 @@ WiFiClient httpClient;
 OTAResult result = ota.run(httpClient);
 ```
 
-> ⚠️ **Library TIDAK restart device otomatis** (kecuali `rebootOnUpdate(true)`). Cek `OTA_SUCCESS` dan panggil `ESP.restart()` sendiri.
+> **Warning:** Library TIDAK restart device otomatis (kecuali `rebootOnUpdate(true)`). Cek `OTA_SUCCESS` dan panggil `ESP.restart()` sendiri.
 
 ---
 
@@ -316,7 +312,7 @@ Serial.println(ESP32httpOTA::resultToString(result));
 
 ---
 
-## 📊 Result Codes
+## Result Codes
 
 | Code | Nilai | Deskripsi | Kapan Terjadi |
 |------|-------|-----------|---------------|
@@ -328,7 +324,7 @@ Serial.println(ESP32httpOTA::resultToString(result));
 
 ---
 
-## 🐛 Debug Mode
+## Debug Mode
 
 Library **tidak menghasilkan output serial** secara default. Untuk mengaktifkan log debug:
 
@@ -361,7 +357,7 @@ Library **tidak menghasilkan output serial** secara default. Untuk mengaktifkan 
 
 ---
 
-## 📚 Contoh Lengkap
+## Contoh Lengkap
 
 ### 1. BasicOTA — Cek Update via Tombol
 
@@ -524,65 +520,65 @@ void loop() {
 
 ---
 
-## 🔄 Alur Kerja Update
+## Alur Kerja Update
 
 ```
-┌──────────────────────────────────────────────────┐
-│  DEVELOPER                                        │
-│                                                    │
-│  1. Edit kode, ubah versi ke "1.1.0"               │
-│  2. Arduino IDE → Sketch → Export Compiled Binary  │
-│  3. Upload firmware.bin ke server                  │
-│  4. Update version.json → { "version": "1.1.0" }  │
-└────────────────────┬─────────────────────────────┘
-                     │
-                     ▼
-┌──────────────────────────────────────────────────┐
-│  SERVER (GitHub / VPS / S3 / LAN / Firebase)      │
-│                                                    │
-│  📄 version.json → { "version": "1.1.0",          │
-│                       "firmware": "url/fw.bin" }   │
-│  📦 firmware.bin → (binary baru)                   │
-└────────────────────┬─────────────────────────────┘
-                     │
-                     ▼
-┌──────────────────────────────────────────────────┐
-│  ESP32 DEVICE (running v1.0.0)                    │
-│                                                    │
-│  ota.run(client)                                   │
-│    → GET version.json                              │
-│    → Parse: 1.1.0 > 1.0.0 ✓ → update tersedia!    │
-│    → Download firmware.bin                          │
-│    → Flash ke partisi OTA                          │
-│    → return OTA_SUCCESS                            │
-│  ESP.restart() → boot sebagai v1.1.0 ✓            │
-└──────────────────────────────────────────────────┘
++----------------------------------------------------+
+|  DEVELOPER                                          |
+|                                                     |
+|  1. Edit kode, ubah versi ke "1.1.0"                |
+|  2. Arduino IDE -> Sketch -> Export Compiled Binary  |
+|  3. Upload firmware.bin ke server                   |
+|  4. Update version.json -> { "version": "1.1.0" }  |
++------------------------+---------------------------+
+                         |
+                         v
++----------------------------------------------------+
+|  SERVER (GitHub / VPS / S3 / LAN / Firebase)        |
+|                                                     |
+|  version.json -> { "version": "1.1.0",             |
+|                    "firmware": "url/fw.bin" }        |
+|  firmware.bin -> (binary baru)                      |
++------------------------+---------------------------+
+                         |
+                         v
++----------------------------------------------------+
+|  ESP32 DEVICE (running v1.0.0)                      |
+|                                                     |
+|  ota.run(client)                                    |
+|    -> GET version.json                              |
+|    -> Parse: 1.1.0 > 1.0.0 -> update tersedia      |
+|    -> Download firmware.bin                          |
+|    -> Flash ke partisi OTA                          |
+|    -> return OTA_SUCCESS                            |
+|  ESP.restart() -> boot sebagai v1.1.0               |
++----------------------------------------------------+
 ```
 
 ---
 
-## 🏗️ Arsitektur
+## Arsitektur
 
 ```
-┌──────────────────────────────────────────┐
-│            Sketch kamu (.ino)            │
-│                                          │
-│  WiFi / Ethernet ──► WiFiClient(Secure)  │
-│                                          │
-│  Trigger ──────────────────────┐        │
-│  (tombol / timer / perintah)   │        │
-│                                 ▼        │
-│                      ┌──────────────┐   │
-│                      │ ESP32httpOTA │   │
-│                      │              │   │
-│                      │  • Manifest  │   │
-│                      │  • Version   │   │
-│                      │  • Download  │   │
-│                      │  • Flash     │   │
-│                      └──────────────┘   │
-│                                          │
-│  if (OTA_SUCCESS) ESP.restart();         │
-└──────────────────────────────────────────┘
++------------------------------------------+
+|            Sketch kamu (.ino)            |
+|                                          |
+|  WiFi / Ethernet --> WiFiClient(Secure)  |
+|                                          |
+|  Trigger -----------------------+        |
+|  (tombol / timer / perintah)    |        |
+|                                 v        |
+|                      +--------------+    |
+|                      | ESP32httpOTA |    |
+|                      |              |    |
+|                      |  - Manifest  |    |
+|                      |  - Version   |    |
+|                      |  - Download  |    |
+|                      |  - Flash     |    |
+|                      +--------------+    |
+|                                          |
+|  if (OTA_SUCCESS) ESP.restart();         |
++------------------------------------------+
 ```
 
 **Library bertanggung jawab untuk:** OTA logic (cek, download, flash).
@@ -590,7 +586,7 @@ void loop() {
 
 ---
 
-## 📁 Struktur File
+## Struktur File
 
 ```
 ESP32httpOTA/
@@ -613,7 +609,7 @@ ESP32httpOTA/
 
 ---
 
-## ❓ FAQ
+## FAQ
 
 ### Apakah library ini support ESP8266?
 Tidak. Library ini khusus untuk **ESP32** karena menggunakan `HTTPUpdate` dari arduino-esp32 core.
@@ -635,7 +631,7 @@ Best practice: library tidak boleh mengambil kontrol restart. User mungkin perlu
 
 ---
 
-## 📝 Changelog
+## Changelog
 
 ### v1.0.0
 - Initial release
@@ -652,10 +648,10 @@ Best practice: library tidak boleh mengambil kontrol restart. User mungkin perlu
 
 ---
 
-## 📄 License
+## License
 
 MIT License — lihat [LICENSE](LICENSE) untuk detail.
 
 ---
 
-**Made with ❤️ by [voknetral](https://github.com/voknetral)**
+**Made by [voknetral](https://github.com/voknetral)**
