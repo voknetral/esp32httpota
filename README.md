@@ -12,24 +12,6 @@ Library ringan dan modular untuk mengecek dan menerapkan update firmware dari **
 
 ---
 
-## ✨ Fitur
-
-| Fitur | Deskripsi |
-|-------|-----------|
-| 🔄 **Satu panggilan** | `ota.run(client)` — cek, download, flash, selesai |
-| 📋 **JSON manifest** | Cukup sediakan `version.json` di server |
-| 🔢 **Semantic Versioning** | Membandingkan `major.minor.patch` otomatis |
-| 🌐 **HTTP + HTTPS** | Support `WiFiClient` (HTTP) dan `WiFiClientSecure` (HTTPS) |
-| 🔌 **Network-agnostic** | Bisa pakai WiFi, Ethernet, GSM — kamu yang atur koneksi |
-| 📊 **Progress callback** | `ota.onProgress(...)` untuk tracking download |
-| ⏱️ **Timeout konfigurasi** | `ota.setTimeout(ms)` sesuai kebutuhan |
-| 🔒 **CA certificate** | Verifikasi TLS opsional dengan `setCACert()` |
-| 🔁 **Auto-reboot** | `ota.rebootOnUpdate(true)` atau restart manual |
-| 🐛 **Debug toggle** | `#define OTA_DEBUG` aktifkan/nonaktifkan log serial |
-| 📦 **Dual compatible** | Arduino IDE + PlatformIO |
-
----
-
 ## 📋 Requirements
 
 - **Board**: ESP32 (semua varian)
