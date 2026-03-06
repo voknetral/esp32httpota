@@ -12,7 +12,8 @@ Library ringan untuk mengecek dan menerapkan update firmware dari **server HTTP/
 
 - **Auto Manifest Parsing**: Cukup berikan URL ke file JSON.
 - **Cross-Version Support**: Mendukung ESP32 core 2.x dan 3.x secara otomatis.
-- **Progress Callbacks**: Pantau progres download/flash secara real-time.
+- **Progress Callbacks**: Pantau progres download/flash secara real-time (Smart Filtering).
+- **Update Notifications**: Dapatkan info versi sebelum download dimulai via `onUpdateAvailable`.
 - **Lifecycle Callbacks**: Kontrol aksi pada event `onStart`, `onEnd`, dan `onError`.
 - **Custom Headers**: Tambahkan Authorization atau meta-data ke request HTTP.
 - **Retry Mechanism**: Lebih stabil dengan fitur auto-retry jika koneksi gagal.
@@ -227,6 +228,8 @@ Serial.println(ESP32httpOTA::resultToString(result));
 Library ini menyediakan beberapa contoh di folder `examples/`:
 - **BasicOTA**: Cara standar melakukan update dengan pengecekan versi firmware.
 - **ForceOTA**: Cara memaksa update langsung tanpa pengecekan versi.
+- **IntegratedOTA (Project)**: Contoh integrasi lengkap dengan sensor (Ultrasonic, DHT, PIR), LED PWM, dan tampilan progres di OLED.
+
 
 ---
 
@@ -237,6 +240,20 @@ Set function callback untuk memantau progres update.
 ```cpp
 ota.onProgress([](int current, int total) {
     Serial.printf("Progres: %d%%\n", (current * 100) / total);
+});
+```
+
+> **Note:** Library memiliki fitur **Smart Progress Filtering**. Callback ini hanya akan dipanggil jika persentase (%) berubah, sehingga tidak membanjiri Serial monitor atau memperlambat layar OLED.
+
+---
+
+### `onUpdateAvailable(OTAUpdateCallback callback)`
+
+Callback yang dipanggil ketika versi baru ditemukan di server, sebelum proses download dimulai. Memberikan informasi versi saat ini dan versi terbaru.
+
+```cpp
+ota.onUpdateAvailable([](const String& current, const String& latest) {
+    Serial.printf("Update ditemukan! v%s -> v%s\n", current.c_str(), latest.c_str());
 });
 ```
 
