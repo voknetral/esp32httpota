@@ -210,6 +210,7 @@ private:
   std::vector<OTAHeader> _headers;
   uint32_t _timeout = 10000;
   int _retries = 0;
+  int _lastProgress = -1;
 
   void _applyHeaders(HTTPClient &http);
 };

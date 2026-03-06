@@ -228,6 +228,18 @@ OTAResult ESP32httpOTA::_doUpdate(OTAClient &client, const String &url) {
   http.setTimeout(_timeout);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
+  _lastProgress = -1; // Reset progress tracking
+  httpUpdate.onProgress([this](int cur, int total) {
+    if (total <= 0)
+      return;
+    int pct = (cur * 100) / total;
+    if (pct != _lastProgress) {
+      _lastProgress = pct;
+      if (_progressCb)
+        _progressCb(cur, total);
+    }
+  });
+
   t_httpUpdate_return ret = httpUpdate.update(http);
 
   if (ret == HTTP_UPDATE_OK) {
