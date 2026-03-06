@@ -114,6 +114,10 @@ void ESP32httpOTA::onStart(OTACallback callback) { _startCb = callback; }
 void ESP32httpOTA::onEnd(OTACallback callback) { _endCb = callback; }
 void ESP32httpOTA::onError(OTAErrorCallback callback) { _errorCb = callback; }
 
+void ESP32httpOTA::onUpdateAvailable(OTAUpdateCallback callback) {
+  _updateAvailableCb = callback;
+}
+
 void ESP32httpOTA::addHeader(const String &name, const String &value) {
   _headers.push_back({name, value});
 }
@@ -186,6 +190,8 @@ OTAResult ESP32httpOTA::_fetchAndUpdate(OTAClient &client, bool force) {
   OTA_LOG("Proceeding with update: v%s -> v%s", _version.c_str(),
           latestVersion.c_str());
 
+  if (_updateAvailableCb)
+    _updateAvailableCb(_version, latestVersion);
   if (_startCb)
     _startCb();
 

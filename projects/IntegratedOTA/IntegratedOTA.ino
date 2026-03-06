@@ -169,6 +169,11 @@ void setup() {
 
   // ================= OTA LIFECYCLE CALLBACKS =================
 
+  ota.onUpdateAvailable([](const String &current, const String &latest) {
+    Serial.printf("\n[!] Update tersedia! v%s -> v%s\n", current.c_str(),
+                  latest.c_str());
+  });
+
   ota.onStart([]() {
     Serial.println("OTA: Start");
     showOTAUI("Downloading...", 0);

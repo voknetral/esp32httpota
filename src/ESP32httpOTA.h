@@ -50,6 +50,7 @@ enum OTAResult {
 typedef std::function<void(int, int)> OTAProgressCallback;
 typedef std::function<void()> OTACallback;
 typedef std::function<void(OTAResult)> OTAErrorCallback;
+typedef std::function<void(const String &, const String &)> OTAUpdateCallback;
 
 struct OTAHeader {
   String name;
@@ -156,9 +157,10 @@ public:
   void onEnd(OTACallback callback);
 
   /**
-   * @brief Set callback for when an error occurs.
+   * @brief Set callback for when an update is found but before it starts.
+   * Provides current version and latest version found.
    */
-  void onError(OTAErrorCallback callback);
+  void onUpdateAvailable(OTAUpdateCallback callback);
 
   /**
    * @brief Add a custom HTTP header to all requests.
@@ -206,6 +208,7 @@ private:
   OTACallback _startCb;
   OTACallback _endCb;
   OTAErrorCallback _errorCb;
+  OTAUpdateCallback _updateAvailableCb;
 
   std::vector<OTAHeader> _headers;
   uint32_t _timeout = 10000;
