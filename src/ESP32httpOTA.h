@@ -35,6 +35,18 @@ typedef Client OTAClient;
 typedef Client OTAClient;
 #endif
 
+/**
+ * @enum OTAResult
+ * @brief Result codes returned by OTA operations.
+ */
+enum OTAResult {
+  OTA_SUCCESS = 0,  ///< Update flashed successfully (device NOT restarted)
+  OTA_NO_UPDATE,    ///< Firmware is already up to date
+  OTA_HTTP_ERROR,   ///< Failed to reach manifest URL
+  OTA_JSON_ERROR,   ///< Manifest JSON is invalid or missing fields
+  OTA_UPDATE_FAILED ///< Firmware download or flash failed
+};
+
 typedef std::function<void(int, int)> OTAProgressCallback;
 typedef std::function<void()> OTACallback;
 typedef std::function<void(OTAResult)> OTAErrorCallback;
@@ -60,18 +72,6 @@ struct OTAHeader {
 #else
 #define OTA_LOG(fmt, ...)
 #endif
-
-/**
- * @enum OTAResult
- * @brief Result codes returned by OTA operations.
- */
-enum OTAResult {
-  OTA_SUCCESS = 0,  ///< Update flashed successfully (device NOT restarted)
-  OTA_NO_UPDATE,    ///< Firmware is already up to date
-  OTA_HTTP_ERROR,   ///< Failed to reach manifest URL
-  OTA_JSON_ERROR,   ///< Manifest JSON is invalid or missing fields
-  OTA_UPDATE_FAILED ///< Firmware download or flash failed
-};
 
 /**
  * @class ESP32httpOTA
