@@ -50,18 +50,89 @@ int ESP32httpOTA::_compareVersion(const String &v1, const String &v2) {
 
 // ─── Public run() overloads ─────────────────────────────────────────
 
-OTAResult ESP32httpOTA::run(WiFiClientSecure &client) {
-  return _fetchAndUpdate(client);
+OTAResult ESP32httpOTA::update(WiFiClientSecure &client) {
+  OTAResult res = OTA_UPDATE_FAILED;
+  for (int i = 0; i <= _retries; i++) {
+    res = _fetchAndUpdate(client, false);
+    if (res != OTA_HTTP_ERROR)
+      break;
+    if (i < _retries)
+      delay(1000);
+  }
+  if (res != OTA_SUCCESS && res != OTA_NO_UPDATE && _errorCb)
+    _errorCb(res);
+  return res;
 }
 
-OTAResult ESP32httpOTA::run(WiFiClient &client) {
-  return _fetchAndUpdate(client);
+OTAResult ESP32httpOTA::update(WiFiClient &client) {
+  OTAResult res = OTA_UPDATE_FAILED;
+  for (int i = 0; i <= _retries; i++) {
+    res = _fetchAndUpdate(client, false);
+    if (res != OTA_HTTP_ERROR)
+      break;
+    if (i < _retries)
+      delay(1000);
+  }
+  if (res != OTA_SUCCESS && res != OTA_NO_UPDATE && _errorCb)
+    _errorCb(res);
+  return res;
+}
+
+OTAResult ESP32httpOTA::forceUpdate(WiFiClientSecure &client) {
+  OTAResult res = OTA_UPDATE_FAILED;
+  for (int i = 0; i <= _retries; i++) {
+    res = _fetchAndUpdate(client, true);
+    if (res != OTA_HTTP_ERROR)
+      break;
+    if (i < _retries)
+      delay(1000);
+  }
+  if (res != OTA_SUCCESS && _errorCb)
+    _errorCb(res);
+  return res;
+}
+
+OTAResult ESP32httpOTA::forceUpdate(WiFiClient &client) {
+  OTAResult res = OTA_UPDATE_FAILED;
+  for (int i = 0; i <= _retries; i++) {
+    res = _fetchAndUpdate(client, true);
+    if (res != OTA_HTTP_ERROR)
+      break;
+    if (i < _retries)
+      delay(1000);
+  }
+  if (res != OTA_SUCCESS && _errorCb)
+    _errorCb(res);
+  return res;
+}
+
+void ESP32httpOTA::onProgress(OTAProgressCallback callback) {
+  _progressCb = callback;
+}
+
+void ESP32httpOTA::onStart(OTACallback callback) { _startCb = callback; }
+void ESP32httpOTA::onEnd(OTACallback callback) { _endCb = callback; }
+void ESP32httpOTA::onError(OTAErrorCallback callback) { _errorCb = callback; }
+
+void ESP32httpOTA::addHeader(const String &name, const String &value) {
+  _headers.push_back({name, value});
+}
+
+void ESP32httpOTA::clearHeaders() { _headers.clear(); }
+void ESP32httpOTA::setRetries(int count) { _retries = count; }
+void ESP32httpOTA::setTimeout(uint32_t timeoutMs) { _timeout = timeoutMs; }
+
+void ESP32httpOTA::_applyHeaders(HTTPClient &http) {
+  for (const auto &h : _headers) {
+    http.addHeader(h.name, h.value);
+  }
 }
 
 // ─── Main OTA Flow ──────────────────────────────────────────────────
 
-OTAResult ESP32httpOTA::_fetchAndUpdate(Client &client) {
-  OTA_LOG("Checking manifest: %s", _manifestUrl.c_str());
+OTAResult ESP32httpOTA::_fetchAndUpdate(OTAClient &client, bool force) {
+  OTA_LOG("Checking manifest (Force: %s): %s", force ? "Yes" : "No",
+          _manifestUrl.c_str());
 
   // 1. Fetch manifest
   HTTPClient http;
@@ -70,7 +141,8 @@ OTAResult ESP32httpOTA::_fetchAndUpdate(Client &client) {
     return OTA_HTTP_ERROR;
   }
 
-  http.setTimeout(10000);
+  _applyHeaders(http);
+  http.setTimeout(_timeout);
   int code = http.GET();
 
   if (code != HTTP_CODE_OK) {
@@ -102,38 +174,61 @@ OTAResult ESP32httpOTA::_fetchAndUpdate(Client &client) {
           latestVersion.c_str());
 
   // 3. Compare versions
-  if (_compareVersion(latestVersion, _version) <= 0) {
-    OTA_LOG("Already up to date");
+  if (!force && _compareVersion(latestVersion, _version) <= 0) {
+    OTA_LOG("Already up to date (v%s)", _version.c_str());
     return OTA_NO_UPDATE;
   }
 
-  OTA_LOG("Update available: v%s -> v%s", _version.c_str(),
+  if (force) {
+    OTA_LOG("Force update triggered. Ignoring version check.");
+  }
+
+  OTA_LOG("Proceeding with update: v%s -> v%s", _version.c_str(),
           latestVersion.c_str());
 
+  if (_startCb)
+    _startCb();
+
   // 4. Download & flash
-  return _doUpdate(client, firmwareUrl);
+  OTAResult res = _doUpdate(client, firmwareUrl);
+  if (res == OTA_SUCCESS && _endCb)
+    _endCb();
+  return res;
 }
 
 // ─── Firmware Download & Flash ──────────────────────────────────────
 
-OTAResult ESP32httpOTA::_doUpdate(Client &client, const String &url) {
+OTAResult ESP32httpOTA::_doUpdate(OTAClient &client, const String &url) {
   OTA_LOG("Downloading: %s", url.c_str());
 
   httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   httpUpdate.rebootOnUpdate(false);
 
+  if (_progressCb) {
+    httpUpdate.onProgress(_progressCb);
+  } else {
 #ifdef OTA_DEBUG
-  httpUpdate.onProgress([](int current, int total) {
-    if (total > 0) {
-      int pct = (current * 100) / total;
-      if (pct % 10 == 0) {
-        Serial.printf("[OTA] Progress: %d%%\n", pct);
+    httpUpdate.onProgress([](int current, int total) {
+      if (total > 0) {
+        int pct = (current * 100) / total;
+        if (pct % 10 == 0) {
+          Serial.printf("[OTA] Progress: %d%%\n", pct);
+        }
       }
-    }
-  });
+    });
 #endif
+  }
 
-  t_httpUpdate_return ret = httpUpdate.update(client, url);
+  // Use HTTPClient overload to support custom headers
+  HTTPClient http;
+  if (!http.begin(client, url)) {
+    return OTA_UPDATE_FAILED;
+  }
+  _applyHeaders(http);
+  http.setTimeout(_timeout);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+  t_httpUpdate_return ret = httpUpdate.update(http);
 
   if (ret == HTTP_UPDATE_OK) {
     OTA_LOG("Update successful!");

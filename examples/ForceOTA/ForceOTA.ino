@@ -9,6 +9,7 @@ const char *ssid = "YOUR_SSID";
 const char *password = "YOUR_PASSWORD";
 
 // OTA Configuration
+// In ForceOTA, it doesn't matter what current_version is.
 const char *current_version = "1.0.0";
 const char *manifest_url = "https://raw.githubusercontent.com/voknetral/"
                            "ESP32httpOTA/main/examples/BasicOTA/version.json";
@@ -18,7 +19,8 @@ ESP32httpOTA ota(current_version, manifest_url);
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n--- ESP32 Basic OTA ---\n");
+  Serial.println("\n--- ESP32 Force OTA ---");
+  Serial.println("Warning: This will flash firmware regardless of version!\n");
 
   // Connect to WiFi
   WiFi.begin(ssid, password);
@@ -35,17 +37,16 @@ void setup() {
       Serial.println();
   });
 
-  Serial.printf("Current Version: v%s\n", ota.currentVersion());
-  Serial.println("Checking for updates...");
+  Serial.println("Forcing update now...");
 
   WiFiClientSecure client;
   client.setInsecure();
 
-  // standard update checks version.json first
-  OTAResult result = ota.update(client);
+  // forceUpdate() skips version check
+  OTAResult result = ota.forceUpdate(client);
 
   if (result == OTA_SUCCESS) {
-    Serial.println("Update success! Restarting...");
+    Serial.println("Force update success! Restarting...");
     delay(2000);
     ESP.restart();
   } else {

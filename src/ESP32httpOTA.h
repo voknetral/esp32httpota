@@ -18,8 +18,31 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
+#include <NetworkClient.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
+#include <map>
+#include <vector>
+
+#ifdef ESP_ARDUINO_VERSION
+#if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+#include <NetworkClient.h>
+typedef NetworkClient OTAClient;
+#else
+typedef Client OTAClient;
+#endif
+#else
+typedef Client OTAClient;
+#endif
+
+typedef std::function<void(int, int)> OTAProgressCallback;
+typedef std::function<void()> OTACallback;
+typedef std::function<void(OTAResult)> OTAErrorCallback;
+
+struct OTAHeader {
+  String name;
+  String value;
+};
 
 /** Library version */
 #define ESP32HTTPOTA_VERSION "1.0.0"
@@ -88,25 +111,72 @@ public:
   // ─── OTA Operations ───────────────────────────────────────────────
 
   /**
-   * @brief Check for update and apply if available (HTTPS).
-   *
-   * Steps performed:
-   * 1. GET version.json from server
-   * 2. Parse latest version & firmware URL
-   * 3. Compare versions using Semantic Versioning
-   * 4. If newer version exists: download & flash
-   *
-   * @param client  WiFiClientSecure reference (configured by caller)
+   * @brief Check for update and apply if available.
+   * @param client  WiFiClientSecure/WiFiClient reference
    * @return OTAResult indicating the outcome
    */
-  OTAResult run(WiFiClientSecure &client);
+  OTAResult update(WiFiClientSecure &client);
+  OTAResult update(WiFiClient &client);
 
   /**
-   * @brief Check for update and apply if available (HTTP).
-   * @param client  WiFiClient reference
+   * @brief Skip version check and force firmware update.
+   * @param client  WiFiClientSecure/WiFiClient reference
    * @return OTAResult indicating the outcome
    */
-  OTAResult run(WiFiClient &client);
+  OTAResult forceUpdate(WiFiClientSecure &client);
+  OTAResult forceUpdate(WiFiClient &client);
+
+  /** @deprecated Use update() instead */
+  OTAResult run(WiFiClientSecure &client) { return update(client); }
+  /** @deprecated Use update() instead */
+  OTAResult run(WiFiClient &client) { return update(client); }
+
+  // ─── Configuration ──────────────────────────────────────────────
+
+  /**
+   * @brief Set progress callback function.
+   * @param callback Function with signature: void(int current, int total)
+   */
+  void onProgress(OTAProgressCallback callback);
+
+  /**
+   * @brief Set HTTP request timeout.
+   * @param timeoutMs Timeout in milliseconds (default: 10000)
+   */
+  void setTimeout(uint32_t timeoutMs);
+
+  /**
+   * @brief Set callback for when update starts.
+   */
+  void onStart(OTACallback callback);
+
+  /**
+   * @brief Set callback for when update ends successfully.
+   */
+  void onEnd(OTACallback callback);
+
+  /**
+   * @brief Set callback for when an error occurs.
+   */
+  void onError(OTAErrorCallback callback);
+
+  /**
+   * @brief Add a custom HTTP header to all requests.
+   * @param name   Header name (e.g. "Authorization")
+   * @param value  Header value (e.g. "Bearer token")
+   */
+  void addHeader(const String &name, const String &value);
+
+  /**
+   * @brief Clear all custom HTTP headers.
+   */
+  void clearHeaders();
+
+  /**
+   * @brief Set number of retries for failed requests.
+   * @param count  Number of retries (default: 0)
+   */
+  void setRetries(int count);
 
   // ─── Getters ──────────────────────────────────────────────────────
 
@@ -128,8 +198,20 @@ private:
   String _manifestUrl;
 
   int _compareVersion(const String &v1, const String &v2);
-  OTAResult _fetchAndUpdate(Client &client);
-  OTAResult _doUpdate(Client &client, const String &url);
+
+  OTAResult _fetchAndUpdate(OTAClient &client, bool force = false);
+  OTAResult _doUpdate(OTAClient &client, const String &url);
+
+  OTAProgressCallback _progressCb;
+  OTACallback _startCb;
+  OTACallback _endCb;
+  OTAErrorCallback _errorCb;
+
+  std::vector<OTAHeader> _headers;
+  uint32_t _timeout = 10000;
+  int _retries = 0;
+
+  void _applyHeaders(HTTPClient &http);
 };
 
 #endif // ESP32HTTPOTA_H

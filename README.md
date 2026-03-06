@@ -10,6 +10,17 @@
 
 Library ringan untuk mengecek dan menerapkan update firmware dari **server HTTP/HTTPS manapun** — GitHub, VPS, S3, Firebase, server lokal LAN, atau URL apapun yang menyediakan file JSON manifest dan file `.bin`.
 
+- **Auto Manifest Parsing**: Cukup berikan URL ke file JSON.
+- **Cross-Version Support**: Mendukung ESP32 core 2.x dan 3.x secara otomatis.
+- **Progress Callbacks**: Pantau progres download/flash secara real-time.
+- **Lifecycle Callbacks**: Kontrol aksi pada event `onStart`, `onEnd`, dan `onError`.
+- **Custom Headers**: Tambahkan Authorization atau meta-data ke request HTTP.
+- **Retry Mechanism**: Lebih stabil dengan fitur auto-retry jika koneksi gagal.
+- **Configurable Timeouts**: Kontrol perilaku user terhadap koneksi lambat.
+- **Semantic Versioning**: Update hanya dilakukan jika versi di server lebih tinggi.
+- **Network Agnostic**: Bekerja dengan `WiFiClient` (HTTP) atau `WiFiClientSecure` (HTTPS).
+- **GitHub Ready**: Ambil update dari GitHub Releases atau raw content dengan mudah.
+
 ---
 
 ## Requirements
@@ -71,8 +82,12 @@ void setup() {
     WiFiClientSecure client;
     client.setInsecure();          // atau client.setCACert(rootCA) untuk verifikasi
 
-    // Cek dan menjalankan update
-    OTAResult result = ota.run(client);
+    // Cek dan menjalankan update (Standar)
+    OTAResult result = ota.update(client);
+    
+    // Atau paksa update tanpa cek versi:
+    // OTAResult result = ota.forceUpdate(client);
+    
     Serial.println(ESP32httpOTA::resultToString(result));
 
     // Restart jika update berhasil
@@ -102,7 +117,7 @@ void setup() {
     while (WiFi.status() != WL_CONNECTED) delay(500);
 
     WiFiClient client;                       // HTTP biasa, tanpa SSL
-    OTAResult result = ota.run(client);
+    OTAResult result = ota.update(client);
 
     if (result == OTA_SUCCESS) {
         Serial.println("Update berhasil! Restart...");
@@ -161,26 +176,24 @@ ESP32httpOTA ota("1.0.0", "https://yourserver.com/version.json");
 
 ---
 
-### `run(WiFiClientSecure& client)` → `OTAResult`
-### `run(WiFiClient& client)` → `OTAResult`
+### `update(OTAClient& client)` → `OTAResult`
 
-Fungsi utama. Cek manifest di server, bandingkan versi, dan update jika ada versi baru.
+Mengecek manifest di server, membandingkan versi, dan update jika ada versi baru.
 
-**Alur kerja:**
-1. `GET version.json` dari server
-2. Parse JSON → ambil `version` dan `firmware` URL
-3. Bandingkan versi dengan Semantic Versioning
-4. Jika versi baru lebih tinggi → download `.bin` → flash ke ESP32
+### `forceUpdate(OTAClient& client)` → `OTAResult`
+
+Mengabaikan pengecekan versi dan langsung melakukan proses update firmware.
 
 ```cpp
 // HTTPS
 WiFiClientSecure secureClient;
 secureClient.setInsecure();
-OTAResult result = ota.run(secureClient);
+OTAResult result = ota.update(secureClient); // Standar
+OTAResult resultForce = ota.forceUpdate(secureClient); // Paksa
 
 // HTTP
 WiFiClient httpClient;
-OTAResult result = ota.run(httpClient);
+OTAResult result = ota.update(httpClient);
 ```
 
 > **Warning:** Library TIDAK restart device otomatis. Cek `OTA_SUCCESS` dan panggil `ESP.restart()` sendiri.
@@ -202,9 +215,73 @@ Serial.printf("Firmware v%s\n", ota.currentVersion());
 Konversi result code ke string yang mudah dibaca.
 
 ```cpp
-OTAResult result = ota.run(client);
+OTAResult result = ota.update(client);
 Serial.println(ESP32httpOTA::resultToString(result));
 // Output: "Success" / "Already up to date" / "HTTP request failed" / dll
+```
+
+---
+
+## Contoh (Examples)
+
+Library ini menyediakan beberapa contoh di folder `examples/`:
+- **BasicOTA**: Cara standar melakukan update dengan pengecekan versi firmware.
+- **ForceOTA**: Cara memaksa update langsung tanpa pengecekan versi.
+
+---
+
+### `onProgress(OTAProgressCallback callback)`
+
+Set function callback untuk memantau progres update.
+
+```cpp
+ota.onProgress([](int current, int total) {
+    Serial.printf("Progres: %d%%\n", (current * 100) / total);
+});
+```
+
+---
+
+### `setTimeout(uint32_t timeoutMs)`
+
+Set timeout untuk request HTTP (default: 10000ms).
+
+```cpp
+ota.setTimeout(15000); // 15 detik
+```
+
+---
+
+### `onStart(OTACallback callback)`
+### `onEnd(OTACallback callback)`
+### `onError(OTAErrorCallback callback)`
+
+Lifecycle callbacks untuk menangani proses update.
+
+```cpp
+ota.onStart([]() { Serial.println("Update dimulai..."); });
+ota.onEnd([]() { Serial.println("Update selesai sukses!"); });
+ota.onError([](OTAResult err) { Serial.println("Gagal!"); });
+```
+
+---
+
+### `addHeader(String name, String value)`
+
+Menambahkan header kustom (misal: Auth).
+
+```cpp
+ota.addHeader("Authorization", "Bearer token123");
+```
+
+---
+
+### `setRetries(int count)`
+
+Mengatur jumlah percobaan ulang jika network error (default: 0).
+
+```cpp
+ota.setRetries(3);
 ```
 
 ---
