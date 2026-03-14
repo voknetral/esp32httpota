@@ -383,5 +383,3 @@ Best practice: library tidak boleh mengambil kontrol restart. User mungkin perlu
 MIT License — lihat [LICENSE](LICENSE) untuk detail.
 
 ---
-
-**Made by [voknetral](https://github.com/voknetral)**
